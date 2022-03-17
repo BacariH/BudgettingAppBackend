@@ -40,11 +40,15 @@ namespace BudgettingApp.Controllers
         [HttpGet("{username}")]
         public async Task<ActionResult<UserEntity>> GetUserById(string username)
         {
-            return await _context.UserEntities
+
+
+            var specificUser = await _context.UserEntities
                 .Include(user => user.TransactionHistories)
                 .SingleOrDefaultAsync(user => user.UserName.ToLower() == username.ToLower());
 
-            
+            if (specificUser == null) return NotFound("Specific user not found");
+
+            return specificUser;
         }
 
         //api/user/add
@@ -64,14 +68,15 @@ namespace BudgettingApp.Controllers
         //In this case we are not using a repository so we will get the user by their id and
         //then edit the user from there
         [HttpPut("{username}")]
-        public async Task<ActionResult> UpdateUser(string username, [FromBody] UserEntity user)
+        public async Task<ActionResult> UpdateUser(string username, UserEntity user)
         {
 
             //It will be similar to a post method
             //First find the specific user to update
 
             var userfound = await _context.UserEntities
-                .FirstOrDefaultAsync(user => user.UserName.ToLower() == username.ToLower());
+                .Include(u => u.TransactionHistories)
+                .FirstAsync(user => user.UserName.ToLower() == username.ToLower());
 
             if (userfound == null)
             {
@@ -82,14 +87,16 @@ namespace BudgettingApp.Controllers
                 userfound.AmountStart = user.AmountStart;
                 userfound.TransactionHistories = user.TransactionHistories;
                 await _context.SaveChangesAsync();
-                return NoContent();
+                return Ok(userfound);
             }
         }
 
-        [HttpDelete("{id}")]
-        public async Task<ActionResult<UserEntity>> DeleteUser(int id)
+        [HttpDelete("{username}")]
+        public async Task<ActionResult<UserEntity>> DeleteUser(string username)
         {
-            var userToDelete = await _context.UserEntities.FindAsync(id);
+            var userToDelete = await _context.UserEntities
+                .Include(userTrans => userTrans.TransactionHistories)
+                .FirstAsync(user => user.UserName.ToLower() == username.ToLower());
 
             if (userToDelete == null) return NotFound("Sorry this is not a user!");
 
@@ -99,6 +106,23 @@ namespace BudgettingApp.Controllers
 
             return NoContent();
         }
+
+
+        //Adding transactions
+        [HttpPost("transaction-add")]
+        public TransactionHistory addTranasactions(TransactionHistory transaction)
+        {
+            var createdTransaction = new TransactionHistory();
+
+
+            createdTransaction.AmountOfTransaction = transaction.AmountOfTransaction;
+            createdTransaction.CreatedTransaction = transaction.CreatedTransaction;
+            createdTransaction.TransactionDescription = transaction.TransactionDescription;
+            createdTransaction.TransactionType = transaction.TransactionType;
+
+            return createdTransaction;
+        }
+
 
         //Returning a boolean value to see if a user is already created ijnside the db
         private async Task<bool> UserExists(string username)
